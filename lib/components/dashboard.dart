@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'login.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:io';
 
 const kDarkGreen = Color(0xFF004643);
 
@@ -16,6 +20,13 @@ class _DashboardPageState extends State<DashboardPage>
   bool _showCalendar = false;
   late final AnimationController _controller;
   late final Animation<Offset> _slideDown;
+  final ImagePicker _picker = ImagePicker();
+
+  final List<String> _apiKeys = [
+    '1VGef4a4LHGWWhWyadfVeG7NasUP8KMxFaQVEPpz8qErDPJ6Fz',
+    'YOUR_SECOND_API_KEY',
+    'YOUR_THIRD_API_KEY',
+  ];
 
   @override
   void initState() {
@@ -45,6 +56,284 @@ class _DashboardPageState extends State<DashboardPage>
     }
   }
 
+  Future<Map<String, dynamic>?> _callPlantIdApi(File imageFile) async {
+    for (int i = 0; i < _apiKeys.length; i++) {
+      try {
+        final bytes = await imageFile.readAsBytes();
+        final base64Image = base64Encode(bytes);
+
+        final response = await http.post(
+          Uri.parse('https://api.plant.id/v2/health_assessment'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Api-Key': _apiKeys[i],
+          },
+          body: jsonEncode({
+            'images': [base64Image],
+            'modifiers': ['crops_fast', 'similar_images'],
+            'disease_details': [
+              'cause',
+              'common_names',
+              'classification',
+              'description',
+              'treatment',
+            ],
+          }),
+        );
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return jsonDecode(response.body);
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _processPlantImage(XFile? pickedFile) async {
+    if (pickedFile == null) return;
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(
+                  File(pickedFile.path),
+                  height: 200,
+                  width: 200,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const CircularProgressIndicator(color: kDarkGreen),
+              const SizedBox(height: 12),
+              const Text('Analyzing plant...'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final imageFile = File(pickedFile.path);
+      final result = await _callPlantIdApi(imageFile);
+
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      if (result != null) {
+        _showPlantIdResults(result);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All API keys failed. Please check your keys.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  void _showPlantIdResults(Map<String, dynamic> result) {
+    final healthAssessment = result['health_assessment'];
+    if (healthAssessment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No health assessment data found')),
+      );
+      return;
+    }
+
+    final diseases = healthAssessment['diseases'] as List<dynamic>? ?? [];
+    final isHealthy = (healthAssessment['is_healthy'] as bool?) ?? false;
+    final isHealthyProbability = (healthAssessment['is_healthy_probability'] as num?)?.toDouble() ?? 0.0;
+    final isPlant = (result['is_plant'] as bool?) ?? true;
+    final isPlantProbability = (result['is_plant_probability'] as num?)?.toDouble() ?? 0.0;
+
+    if (!isPlant || isPlantProbability < 0.5) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Not a Plant'),
+            ],
+          ),
+          content: Text(
+            'The image does not appear to be a plant (${(isPlantProbability * 100).toStringAsFixed(1)}% confidence). Please try again with a clear photo of a plant.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final top3Diseases = diseases.take(3).toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 600),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: kDarkGreen,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.local_hospital_outlined, color: Colors.white),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Plant Health Report',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isHealthy ? Colors.green.shade50 : Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isHealthy ? Colors.green : Colors.red.shade400,
+                            width: 2,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isHealthy ? Icons.check_circle : Icons.local_hospital,
+                              color: isHealthy ? Colors.green : Colors.red.shade700,
+                              size: 32,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isHealthy ? 'Plant is Healthy' : 'Health Issues Detected',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: isHealthy ? Colors.green.shade800 : Colors.red.shade800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    isHealthy 
+                                        ? 'Confidence: ${(isHealthyProbability * 100).toStringAsFixed(1)}%'
+                                        : 'Needs attention - ${top3Diseases.length} issue(s) found',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: isHealthy ? Colors.green.shade700 : Colors.red.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (top3Diseases.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        const Row(
+                          children: [
+                            Icon(Icons.medical_services_outlined, color: kDarkGreen, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Detected Issues & Remedies',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: kDarkGreen,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ...top3Diseases.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final disease = entry.value;
+                          return _DiseaseCard(
+                            rank: index + 1,
+                            disease: disease,
+                          );
+                        }).toList(),
+                      ] else ...[
+                        const SizedBox(height: 24),
+                        Center(
+                          child: Column(
+                            children: [
+                              Icon(Icons.grass, size: 48, color: Colors.green.shade300),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No diseases detected',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _openAIDetectorOptions() {
     showModalBottomSheet(
       context: context,
@@ -59,23 +348,25 @@ class _DashboardPageState extends State<DashboardPage>
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('Upload Photo'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Upload Photo chosen')),
+                final XFile? image = await _picker.pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 85,
                 );
-                // TODO: implement gallery pick
+                _processPlantImage(image);
               },
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
               title: const Text('Take Photo'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Take Photo chosen')),
+                final XFile? image = await _picker.pickImage(
+                  source: ImageSource.camera,
+                  imageQuality: 85,
                 );
-                // TODO: implement camera capture
+                _processPlantImage(image);
               },
             ),
           ],
@@ -587,6 +878,347 @@ class _NavTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: tile,
+    );
+  }
+}
+
+class _DiseaseCard extends StatefulWidget {
+  final int rank;
+  final Map<String, dynamic> disease;
+
+  const _DiseaseCard({
+    required this.rank,
+    required this.disease,
+  });
+
+  @override
+  State<_DiseaseCard> createState() => _DiseaseCardState();
+}
+
+class _DiseaseCardState extends State<_DiseaseCard> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = widget.disease['name'] ?? 'Unknown Disease';
+    final probability = (widget.disease['probability'] as num?)?.toDouble() ?? 0.0;
+    final diseaseDetails = widget.disease['disease_details'];
+    
+    String description = 'No description available';
+    List<String> treatments = [];
+    String cause = '';
+    
+    if (diseaseDetails != null) {
+      description = diseaseDetails['description'] ?? description;
+      cause = diseaseDetails['cause'] ?? '';
+      
+      final treatmentData = diseaseDetails['treatment'];
+      if (treatmentData != null) {
+        if (treatmentData is Map) {
+          if (treatmentData.containsKey('chemical')) {
+            final chemical = treatmentData['chemical'];
+            if (chemical is List) {
+              treatments.addAll(chemical.map((e) => 'Chemical: $e').toList().cast<String>());
+            } else if (chemical is String && chemical.isNotEmpty) {
+              treatments.add('Chemical: $chemical');
+            }
+          }
+          if (treatmentData.containsKey('biological')) {
+            final biological = treatmentData['biological'];
+            if (biological is List) {
+              treatments.addAll(biological.map((e) => 'Biological: $e').toList().cast<String>());
+            } else if (biological is String && biological.isNotEmpty) {
+              treatments.add('Biological: $biological');
+            }
+          }
+          if (treatmentData.containsKey('prevention')) {
+            final prevention = treatmentData['prevention'];
+            if (prevention is List) {
+              treatments.addAll(prevention.map((e) => 'Prevention: $e').toList().cast<String>());
+            } else if (prevention is String && prevention.isNotEmpty) {
+              treatments.add('Prevention: $prevention');
+            }
+          }
+        } else if (treatmentData is List) {
+          treatments.addAll(treatmentData.map((e) => e.toString()).toList().cast<String>());
+        } else if (treatmentData is String && treatmentData.isNotEmpty) {
+          treatments.add(treatmentData);
+        }
+      }
+    }
+    
+    final commonNames = (diseaseDetails?['common_names'] as List<dynamic>?)?.join(', ') ?? '';
+
+    final rankColors = [
+      Colors.red,
+      Colors.orange,
+      Colors.amber,
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: rankColors[widget.rank - 1].withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: rankColors[widget.rank - 1].withOpacity(0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          initiallyExpanded: widget.rank == 1,
+          onExpansionChanged: (expanded) {
+            setState(() => _isExpanded = expanded);
+          },
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  rankColors[widget.rank - 1],
+                  rankColors[widget.rank - 1].withOpacity(0.7),
+                ],
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: rankColors[widget.rank - 1].withOpacity(0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                '${widget.rank}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ),
+          title: Text(
+            name,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              color: rankColors[widget.rank - 1].shade800,
+            ),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (commonNames.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  commonNames,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: probability,
+                        backgroundColor: Colors.grey.shade200,
+                        valueColor: AlwaysStoppedAnimation(
+                          rankColors[widget.rank - 1],
+                        ),
+                        minHeight: 8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: rankColors[widget.rank - 1].withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${(probability * 100).toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: rankColors[widget.rank - 1].shade800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: rankColors[widget.rank - 1].withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (cause.isNotEmpty) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.science_outlined, size: 18, color: rankColors[widget.rank - 1]),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Cause',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: kDarkGreen,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      cause,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade800,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.description_outlined, size: 18, color: rankColors[widget.rank - 1]),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Description',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: kDarkGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade800,
+                      height: 1.5,
+                    ),
+                  ),
+                  if (treatments.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.healing, size: 18, color: Colors.green.shade700),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Remedies & Treatment',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Colors.green.shade800,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          ...treatments.map((treatment) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 6),
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade600,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      treatment,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey.shade800,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 16, color: Colors.grey.shade600),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'No specific treatment information available. Consult a plant specialist.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
