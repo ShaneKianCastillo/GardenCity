@@ -2,9 +2,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // <-- add
 
+import 'forgot_password.dart';
 import 'signup.dart';
-import 'dashboard.dart'; // <-- navigate here after successful login
+import '../components/dashboard.dart';
 
 const kDarkGreen = Color(0xFF004643);
 
@@ -59,13 +61,22 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      // 1) Firebase Auth sign-in
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailCtrl.text.trim(),
         password: _passCtrl.text,
       );
 
+      // 2) Record who logged in (users/{uid}.lastLogin)
+      final uid = cred.user!.uid;
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'uid': uid,
+        'email': _emailCtrl.text.trim(),
+        'lastLogin': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
       if (!mounted) return;
-      // Go to Dashboard on success
+      // 3) Go to Dashboard
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const DashboardPage()),
             (route) => false,
@@ -102,22 +113,12 @@ class _LoginPageState extends State<LoginPage> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      // Logo + Wordmark
-                      Image.asset(
-                        'assets/GardenCityLogo.png',
-                        width: 200,
-                        height: 100,
-                        fit: BoxFit.contain,
-                      ),
+                      Image.asset('assets/GardenCityLogo.png',
+                          width: 200, height: 100, fit: BoxFit.contain),
                       const SizedBox(height: 2),
-                      Image.asset(
-                        'assets/GardenCityText.png',
-                        height: 40,
-                        fit: BoxFit.contain,
-                      ),
+                      Image.asset('assets/GardenCityText.png',
+                          height: 40, fit: BoxFit.contain),
                       const SizedBox(height: 28),
-
-                      // Title
                       Text(
                         'Sign in to your account',
                         textAlign: TextAlign.center,
@@ -149,18 +150,15 @@ class _LoginPageState extends State<LoginPage> {
                           prefixIcon: Icon(Icons.alternate_email),
                         ),
                         validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Enter your email';
-                          }
-                          final ok =
-                          RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v);
+                          if (v == null || v.trim().isEmpty) return 'Enter your email';
+                          final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v);
                           if (!ok) return 'Enter a valid email';
                           return null;
                         },
                       ),
                       const SizedBox(height: 18),
 
-                      // Password + forgot
+                      // Password
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -180,22 +178,14 @@ class _LoginPageState extends State<LoginPage> {
                           hintText: 'Enter your password',
                           prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscure
-                                ? Icons.visibility
-                                : Icons.visibility_off),
-                            onPressed: () =>
-                                setState(() => _obscure = !_obscure),
-                            tooltip:
-                            _obscure ? 'Show password' : 'Hide password',
+                            icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                            onPressed: () => setState(() => _obscure = !_obscure),
+                            tooltip: _obscure ? 'Show password' : 'Hide password',
                           ),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return 'Enter your password';
-                          }
-                          if (v.length < 6) {
-                            return 'Minimum 6 characters';
-                          }
+                          if (v == null || v.isEmpty) return 'Enter your password';
+                          if (v.length < 6) return 'Minimum 6 characters';
                           return null;
                         },
                       ),
@@ -204,85 +194,35 @@ class _LoginPageState extends State<LoginPage> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () async {
-                            final email = _emailCtrl.text.trim();
-                            if (email.isEmpty ||
-                                !RegExp(r'^[^@]+@[^@]+\.[^@]+$')
-                                    .hasMatch(email)) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      'Enter a valid email to reset password.'),
-                                ),
-                              );
-                              return;
-                            }
-                            try {
-                              await FirebaseAuth.instance
-                                  .sendPasswordResetEmail(email: email);
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content:
-                                  Text('Password reset email sent.'),
-                                ),
-                              );
-                            } on FirebaseAuthException catch (e) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: Text(
-                                        'Reset failed: ${e.message ?? e.code}')),
-                              );
-                            }
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
+                            );
                           },
-                          style: TextButton.styleFrom(
-                            foregroundColor: grey,
-                            padding: EdgeInsets.zero,
-                          ),
+                          style: TextButton.styleFrom(foregroundColor: grey, padding: EdgeInsets.zero),
                           child: const Text('Forgot password?'),
                         ),
                       ),
 
-                      // Agreement
                       const SizedBox(height: 4),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Checkbox(
                             value: _agreed,
-                            onChanged: (v) =>
-                                setState(() => _agreed = v ?? false),
+                            onChanged: (v) => setState(() => _agreed = v ?? false),
                             side: const BorderSide(color: Color(0xFFE5E7EB)),
                             activeColor: kDarkGreen,
                           ),
                           Expanded(
                             child: RichText(
                               text: TextSpan(
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(color: grey, height: 1.35),
-                                children: [
-                                  const TextSpan(
-                                      text: "I've read and agreed to "),
-                                  TextSpan(
-                                    text: 'User Agreement',
-                                    style: const TextStyle(
-                                        color: kDarkGreen,
-                                        fontWeight: FontWeight.w600),
-                                    recognizer: TapGestureRecognizer()
-                                      ..onTap = () {},
-                                  ),
-                                  const TextSpan(text: ' and '),
-                                  TextSpan(
-                                    text: 'Privacy Policy',
-                                    style: const TextStyle(
-                                        color: kDarkGreen,
-                                        fontWeight: FontWeight.w600),
-                                    recognizer: TapGestureRecognizer()
-                                      ..onTap = () {},
-                                  ),
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: grey, height: 1.35),
+                                children: const [
+                                  TextSpan(text: "I've read and agreed to "),
+                                  TextSpan(text: 'User Agreement', style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.w600)),
+                                  TextSpan(text: ' and '),
+                                  TextSpan(text: 'Privacy Policy', style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.w600)),
                                 ],
                               ),
                             ),
@@ -291,43 +231,26 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Sign in
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _loading ? null : _submit,
                           child: _loading
-                              ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child:
-                            CircularProgressIndicator(strokeWidth: 2),
-                          )
+                              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
                               : const Text('Sign in'),
                         ),
                       ),
                       const SizedBox(height: 18),
 
-                      // Create Account
                       Wrap(
                         alignment: WrapAlignment.center,
                         children: [
-                          Text("Don't have an account? ",
-                              style: TextStyle(color: grey)),
+                          Text("Don't have an account? ", style: TextStyle(color: grey)),
                           GestureDetector(
                             onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                    builder: (_) => const SignupPage()),
-                              );
+                              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupPage()));
                             },
-                            child: const Text(
-                              'Create Account',
-                              style: TextStyle(
-                                color: kDarkGreen,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            child: const Text('Create Account', style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.w600)),
                           ),
                         ],
                       ),

@@ -37,9 +37,21 @@ dependencies:
   google_fonts: ^6.2.1
   firebase_core: ^4.2.0
   firebase_auth: ^6.1.1
-  image_picker: ^1.0.7
+  image_picker: ^1.2.1
   http: ^1.2.2
-  flutter_dotenv: ^5.1.0
+  flutter_dotenv: ^6.0.0
+  cloud_firestore: ^6.1.0
+  flutter_launcher_icons: ^0.14.4
+  cloudinary_public: ^0.23.1
+  firebase_messaging: ^16.0.4
+  firebase_analytics: ^12.0.4
+  flutter_local_notifications: ^19.5.0
+  timezone: ^0.10.1
+  flutter_timezone: ^5.0.1
+  cloud_functions: ^6.0.4
+  url_launcher: ^6.3.2
+
+
 
 dev_dependencies:
   flutter_test:
@@ -54,7 +66,10 @@ dev_dependencies:
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
-
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/GardenCityLogo.png"
 # The following section is specific to Flutter packages.
 flutter:
 
@@ -69,6 +84,34 @@ flutter:
     - assets/GardenCityText.png
     - assets/AIDiseaseDetectorButton.png
     - .env
+    - assets/titles/GuidesTitle.png
+    - assets/titles/MyGardenTitle.png
+    - assets/titles/ScheduleTitle.png
+    - assets/titles/AddPlantLabel.png
+    - assets/titles/TaskTypeLabel.png
+    - assets/titles/SetDateLabel.png
+    - assets/titles/TodayTaskLabel.png
+    - assets/titles/AllTasksLabel.png
+    - assets/guides/
+    - assets/soilTypeText/
+    - assets/soils/
+    - assets/seasonalPlants/dryPlants/
+    - assets/seasonalPlants/wetPlants/
+    - assets/seasonalPlants/titles/
+    - assets/fertilizingProcess/title/
+    - assets/fertilizingProcess/img/
+    - assets/plantingProcess/img/
+    - assets/plantingProcess/title/
+    - assets/pruningProcess/title/
+    - assets/pruningProcess/img/
+    - assets/
+    - assets/relatedVideos/FertilizingProcessImg/
+    - assets/relatedVideos/PlantingProcessImg/
+    - assets/relatedVideos/PruningProcessImg/
+    - assets/relatedVideos/seasonalPlantsImg/
+    - assets/relatedVideos/title/
+
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -81,12 +124,16 @@ flutter:
   # "family" key with the font family name, and a "fonts" key with a
   # list giving the asset and other descriptors for the font. For
   # example:
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Poppins-ExtraBold.ttf
+          weight: 800
   #   - family: Trajan Pro
   #     fonts:
   #       - asset: fonts/TrajanPro.ttf

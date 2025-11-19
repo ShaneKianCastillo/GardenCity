@@ -85,4 +85,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'gardencity-25df6.firebasestorage.app',
     measurementId: 'G-BPVEZP14F8',
   );
+
 }
