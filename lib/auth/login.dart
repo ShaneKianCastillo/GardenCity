@@ -2,7 +2,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // <-- add
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'forgot_password.dart';
 import 'signup.dart';
@@ -67,8 +67,68 @@ class _LoginPageState extends State<LoginPage> {
         password: _passCtrl.text,
       );
 
-      // 2) Record who logged in (users/{uid}.lastLogin)
       final uid = cred.user!.uid;
+
+      // 2) Check if user is blocked
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data();
+        final isBlocked = userData?['isBlocked'] ?? false;
+
+        if (isBlocked == true) {
+          // User is blocked - sign them out and show error
+          await FirebaseAuth.instance.signOut();
+
+          if (!mounted) return;
+
+          // Show blocked dialog
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.block, color: Colors.red, size: 28),
+                  SizedBox(width: 12),
+                  Text('Account Blocked'),
+                ],
+              ),
+              content: const Text(
+                'Your account has been blocked by an administrator. '
+                    'You are not allowed to access the system.\n\n'
+                    'If you believe this is a mistake, please contact support.',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  height: 1.4,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(
+                      color: kDarkGreen,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          setState(() => _loading = false);
+          return; // Stop login process
+        }
+      }
+
+      // 3) User is not blocked - update lastLogin and proceed
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'uid': uid,
         'email': _emailCtrl.text.trim(),
@@ -76,7 +136,8 @@ class _LoginPageState extends State<LoginPage> {
       }, SetOptions(merge: true));
 
       if (!mounted) return;
-      // 3) Go to Dashboard
+
+      // 4) Go to Dashboard
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const DashboardPage()),
             (route) => false,
@@ -86,15 +147,16 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_mapError(e))),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unexpected error. Please try again.')),
+        SnackBar(content: Text('Unexpected error: $e')),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -130,11 +192,11 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 24),
 
                       // Email
-                      Align(
+                      const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Email Address',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: kDarkGreen,
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
@@ -150,7 +212,8 @@ class _LoginPageState extends State<LoginPage> {
                           prefixIcon: Icon(Icons.alternate_email),
                         ),
                         validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Enter your email';
+                          if (v == null || v.trim().isEmpty)
+                            return 'Enter your email';
                           final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v);
                           if (!ok) return 'Enter a valid email';
                           return null;
@@ -159,11 +222,11 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 18),
 
                       // Password
-                      Align(
+                      const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Password',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: kDarkGreen,
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
@@ -178,9 +241,12 @@ class _LoginPageState extends State<LoginPage> {
                           hintText: 'Enter your password',
                           prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                            icon: Icon(_obscure
+                                ? Icons.visibility
+                                : Icons.visibility_off),
                             onPressed: () => setState(() => _obscure = !_obscure),
-                            tooltip: _obscure ? 'Show password' : 'Hide password',
+                            tooltip:
+                            _obscure ? 'Show password' : 'Hide password',
                           ),
                         ),
                         validator: (v) {
@@ -196,10 +262,12 @@ class _LoginPageState extends State<LoginPage> {
                         child: TextButton(
                           onPressed: () {
                             Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
+                              MaterialPageRoute(
+                                  builder: (_) => const ForgotPasswordPage()),
                             );
                           },
-                          style: TextButton.styleFrom(foregroundColor: grey, padding: EdgeInsets.zero),
+                          style: TextButton.styleFrom(
+                              foregroundColor: grey, padding: EdgeInsets.zero),
                           child: const Text('Forgot password?'),
                         ),
                       ),
@@ -217,12 +285,23 @@ class _LoginPageState extends State<LoginPage> {
                           Expanded(
                             child: RichText(
                               text: TextSpan(
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: grey, height: 1.35),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(color: grey, height: 1.35),
                                 children: const [
                                   TextSpan(text: "I've read and agreed to "),
-                                  TextSpan(text: 'User Agreement', style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.w600)),
+                                  TextSpan(
+                                      text: 'User Agreement',
+                                      style: TextStyle(
+                                          color: kDarkGreen,
+                                          fontWeight: FontWeight.w600)),
                                   TextSpan(text: ' and '),
-                                  TextSpan(text: 'Privacy Policy', style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.w600)),
+                                  TextSpan(
+                                      text: 'Privacy Policy',
+                                      style: TextStyle(
+                                          color: kDarkGreen,
+                                          fontWeight: FontWeight.w600)),
                                 ],
                               ),
                             ),
@@ -236,7 +315,10 @@ class _LoginPageState extends State<LoginPage> {
                         child: ElevatedButton(
                           onPressed: _loading ? null : _submit,
                           child: _loading
-                              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                              ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2))
                               : const Text('Sign in'),
                         ),
                       ),
@@ -245,12 +327,17 @@ class _LoginPageState extends State<LoginPage> {
                       Wrap(
                         alignment: WrapAlignment.center,
                         children: [
-                          Text("Don't have an account? ", style: TextStyle(color: grey)),
+                          Text("Don't have an account? ",
+                              style: TextStyle(color: grey)),
                           GestureDetector(
                             onTap: () {
-                              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupPage()));
+                              Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => const SignupPage()));
                             },
-                            child: const Text('Create Account', style: TextStyle(color: kDarkGreen, fontWeight: FontWeight.w600)),
+                            child: const Text('Create Account',
+                                style: TextStyle(
+                                    color: kDarkGreen,
+                                    fontWeight: FontWeight.w600)),
                           ),
                         ],
                       ),

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../auth/login.dart';
-import '../reportModal/report_problem.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/app_drawer.dart';
+import '../relatedVideos/related_videos.dart';
 
 const kDarkGreen = Color(0xFF004643);
 
@@ -14,271 +13,9 @@ class SoilTypes extends StatefulWidget {
 }
 
 class _SoilTypesState extends State<SoilTypes> {
-  final _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  void _showSoilDetails(_SoilType soil) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          insetPadding:
-          const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: SingleChildScrollView(
-              child: Padding(
-                // squeezed like the design
-                padding: const EdgeInsets.fromLTRB(30, 14, 30, 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // X button on its own row, top-right
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    // Title brought down closer to image
-                    Image.asset(
-                      soil.titleAsset,
-                      height: 26,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Text(
-                        soil.name,
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: kDarkGreen,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.asset(
-                        soil.imageAsset,
-                        width: double.infinity,
-                        height: 200,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      soil.intro,
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 14,
-                        height: 1.4,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ...soil.facts.map(
-                          (fact) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '${fact.label} – ',
-                                style: const TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 14,
-                                  height: 1.4,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              TextSpan(
-                                text: fact.text,
-                                style: const TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 14,
-                                  height: 1.4,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {
-                          showReportProblemDialog(
-                            context,
-                            topicLabel: 'Soil type: ${soil.name}',
-                          );
-                        },
-                        child: const Text(
-                          'Report Problem',
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 12,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final soils = <_SoilType>[
-      _SoilType(
-        name: 'Loam Soil',
-        buttonLabel: 'View Loam Soil',
-        imageAsset: 'assets/soils/LoamSoil.png',
-        titleAsset: 'assets/soilTypeText/LoamSoilText.png',
-        intro:
-        'Loam is a balanced mix of sand, silt, and clay. It gives roots the best structure—holding nutrients and moisture while still draining well.',
-        facts: const [
-          _SoilFact(
-            label: 'Texture',
-            text: 'Soft, crumbly, slightly moist.',
-          ),
-          _SoilFact(
-            label: 'Drainage',
-            text: 'Good.',
-          ),
-          _SoilFact(
-            label: 'Nutrient Retention',
-            text: 'High.',
-          ),
-          _SoilFact(
-            label: 'Ideal For',
-            text: 'Most vegetables, herbs, and flowering plants.',
-          ),
-          _SoilFact(
-            label: 'Urban Use',
-            text:
-            'Great for containers and raised beds; maintain with compost/vermicast to keep moisture.',
-          ),
-        ],
-      ),
-      _SoilType(
-        name: 'Sandy Soil',
-        buttonLabel: 'View Sandy Soil',
-        imageAsset: 'assets/soils/SandySoil.png',
-        titleAsset: 'assets/soilTypeText/SandySoilText.png',
-        intro:
-        'Sandy soil has large particles that drain very fast and warm quickly, but it doesn’t hold nutrients well.',
-        facts: const [
-          _SoilFact(
-            label: 'Texture',
-            text: 'Gritty and loose.',
-          ),
-          _SoilFact(
-            label: 'Drainage',
-            text: 'Excellent (fast).',
-          ),
-          _SoilFact(
-            label: 'Nutrient Retention',
-            text: 'Low, nutrients wash out easily.',
-          ),
-          _SoilFact(
-            label: 'Ideal For',
-            text:
-            'Root crops (carrot, radish) and Mediterranean herbs and succulents.',
-          ),
-          _SoilFact(
-            label: 'Urban Use',
-            text:
-            'Good for plants that hate “wet feet”. Mix in compost, coco peat, or vermicast to boost water-holding and feed more often.',
-          ),
-        ],
-      ),
-      _SoilType(
-        name: 'Silt Soil',
-        buttonLabel: 'View Silt Soil',
-        imageAsset: 'assets/soils/SiltSoil.png',
-        titleAsset: 'assets/soilTypeText/SiltSoilText.png',
-        intro:
-        'Silt has medium-sized particles. It’s naturally fertile and holds moisture better than sand but can compact without structure.',
-        facts: const [
-          _SoilFact(
-            label: 'Texture',
-            text: 'Smooth, silky; slightly slick when wet.',
-          ),
-          _SoilFact(
-            label: 'Drainage',
-            text: 'Moderate; can get waterlogged if compacted.',
-          ),
-          _SoilFact(
-            label: 'Nutrient Retention',
-            text: 'Moderate to high.',
-          ),
-          _SoilFact(
-            label: 'Ideal For',
-            text:
-            'Leafy greens, brassicas, most vegetables with regular soil conditioning.',
-          ),
-          _SoilFact(
-            label: 'Urban Use',
-            text:
-            'Use in raised beds/containers with structure; mix in coarse material and compost to reduce erosion.',
-          ),
-        ],
-      ),
-      _SoilType(
-        name: 'Clay Soil',
-        buttonLabel: 'View Clay Soil',
-        imageAsset: 'assets/soils/ClaySoil.png',
-        titleAsset: 'assets/soilTypeText/ClaySoilText.png',
-        intro:
-        'Clay has very fine particles. It’s nutrient-rich but heavy, drains slowly, and can become hard when dry.',
-        facts: const [
-          _SoilFact(
-            label: 'Texture',
-            text: 'Sticky when wet; hard/cloddy when dry.',
-          ),
-          _SoilFact(
-            label: 'Drainage',
-            text: 'Poor to slow; prone to waterlogging.',
-          ),
-          _SoilFact(
-            label: 'Nutrient Retention',
-            text: 'Very high.',
-          ),
-          _SoilFact(
-            label: 'Ideal For',
-            text:
-            'Moisture-loving plants and many fruiting shrubs once drainage is improved.',
-          ),
-          _SoilFact(
-            label: 'Urban Use',
-            text:
-            'Prefer raised beds/containers; lighten with compost, carbonized rice hull (CRH), and perlite; avoid working soil when wet and keep mulched.',
-          ),
-        ],
-      ),
-    ];
-
     return Scaffold(
-      key: _scaffoldKey,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -293,7 +30,7 @@ class _SoilTypesState extends State<SoilTypes> {
           height: 35,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => const Text(
-            'Soil Types',
+            'Types of Soils',
             style: TextStyle(
               fontFamily: 'Poppins',
               color: kDarkGreen,
@@ -306,180 +43,308 @@ class _SoilTypesState extends State<SoilTypes> {
       ),
       drawer: const AppDrawer(currentPage: 'guides'),
       backgroundColor: Colors.white,
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Back button like other pages
-            TextButton.icon(
-              onPressed: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                }
-              },
-              icon: const Icon(
-                Icons.arrow_back_ios_new_rounded,
-                size: 18,
-                color: kDarkGreen,
-              ),
-              label: const Text(
-                'Back',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  color: kDarkGreen,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: TextButton.styleFrom(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                itemCount: soils.length,
-                itemBuilder: (context, index) {
-                  final soil = soils[index];
-                  return _SoilCard(
-                    soil: soil,
-                    onTap: () => _showSoilDetails(soil),
-                  );
+      body: Column(
+        children: [
+          // Back button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
                 },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SoilFact {
-  final String label;
-  final String text;
-
-  const _SoilFact({
-    required this.label,
-    required this.text,
-  });
-}
-
-class _SoilType {
-  final String name;
-  final String buttonLabel;
-  final String imageAsset;
-  final String titleAsset;
-  final String intro;
-  final List<_SoilFact> facts;
-
-  const _SoilType({
-    required this.name,
-    required this.buttonLabel,
-    required this.imageAsset,
-    required this.titleAsset,
-    required this.intro,
-    required this.facts,
-  });
-}
-
-class _SoilCard extends StatelessWidget {
-  final _SoilType soil;
-  final VoidCallback onTap;
-
-  const _SoilCard({
-    required this.soil,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        child: Column(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: Image.asset(
-                soil.imageAsset,
-                width: double.infinity,
-                height: 160,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: onTap,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kDarkGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  elevation: 0,
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 18,
+                  color: kDarkGreen,
                 ),
-                child: Text(
-                  soil.buttonLabel,
-                  style: const TextStyle(
+                label: const Text(
+                  'Back',
+                  style: TextStyle(
                     fontFamily: 'Poppins',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    color: kDarkGreen,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavTile extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _NavTile({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final base = Theme.of(context).textTheme.bodyLarge;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Container(
-        decoration: BoxDecoration(
-          color: selected ? kDarkGreen : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: ListTile(
-          leading: Icon(icon, color: selected ? Colors.white : kDarkGreen),
-          title: Text(
-            label,
-            style: base?.copyWith(
-              fontFamily: 'Poppins',
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : Colors.black87,
             ),
           ),
-          onTap: onTap,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+
+          // Content list
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('contents')
+                  .where('category', isEqualTo: 'Type of Soils')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: kDarkGreen),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Error loading content',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${snapshot.error}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 12,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No content available yet',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  );
+                }
+
+                // Sort by createdAt in Dart instead of Firestore
+                final docs = snapshot.data!.docs;
+                docs.sort((a, b) {
+                  final aTime = a.data()['createdAt'] as Timestamp?;
+                  final bTime = b.data()['createdAt'] as Timestamp?;
+
+                  if (aTime == null || bTime == null) return 0;
+                  return bTime.compareTo(aTime); // Descending order
+                });
+
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data();
+
+                    return _ContentCard(
+                      contentId: doc.id,
+                      title: data['title'] ?? 'Untitled',
+                      description: data['description'] ?? '',
+                      imageUrl: _getFirstImage(data),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getFirstImage(Map<String, dynamic> data) {
+    final images = data['images'];
+    if (images is List && images.isNotEmpty) {
+      return images[0] as String;
+    }
+    return '';
+  }
+}
+
+class _ContentCard extends StatelessWidget {
+  final String contentId;
+  final String title;
+  final String description;
+  final String imageUrl;
+
+  const _ContentCard({
+    required this.contentId,
+    required this.title,
+    required this.description,
+    required this.imageUrl,
+  });
+
+  void _viewRelatedVideos(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DynamicRelatedVideosPage(
+          contentId: contentId,
+          contentTitle: title,
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance
+          .collection('contents')
+          .doc(contentId)
+          .get(),
+      builder: (context, snapshot) {
+        String author = 'Loading...';
+
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data();
+          author = data?['author'] ?? 'Unknown';
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image
+              if (imageUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: Image.network(
+                    imageUrl,
+                    width: double.infinity,
+                    height: 180,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: double.infinity,
+                      height: 180,
+                      color: const Color(0xFFE5E7EB),
+                      child: const Center(
+                        child: Icon(
+                          Icons.image_not_supported,
+                          size: 48,
+                          color: Color(0xFF9CA3AF),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: kDarkGreen,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        height: 1.4,
+                        color: Color(0xFF6B7280),
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+                    // Author name
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.person_outline,
+                            size: 14,
+                            color: Color(0xFF6B7280),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'By $author',
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _viewRelatedVideos(context),
+                        icon: const Icon(Icons.ondemand_video, size: 18),
+                        label: const Text(
+                          'View Related Videos',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kDarkGreen,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -5,14 +5,14 @@ import '../relatedVideos/related_videos.dart';
 
 const kDarkGreen = Color(0xFF004643);
 
-class PruningProcess extends StatefulWidget {
-  const PruningProcess({super.key});
+class SeasonalAdminRecoPage extends StatefulWidget {
+  const SeasonalAdminRecoPage({super.key});
 
   @override
-  State<PruningProcess> createState() => _PruningProcessState();
+  State<SeasonalAdminRecoPage> createState() => _SeasonalAdminRecoPageState();
 }
 
-class _PruningProcessState extends State<PruningProcess> {
+class _SeasonalAdminRecoPageState extends State<SeasonalAdminRecoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -25,20 +25,16 @@ class _PruningProcessState extends State<PruningProcess> {
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: Image.asset(
-          'assets/pruningProcess/title/PruningProcessText.png',
-          height: 35,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const Text(
-            'Pruning Process',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              color: kDarkGreen,
-              fontWeight: FontWeight.w700,
-            ),
+        title: const Text(
+          'Admin Recommendations',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            color: kDarkGreen,
+            fontWeight: FontWeight.w800,
           ),
         ),
         centerTitle: true,
+        foregroundColor: kDarkGreen,
       ),
       drawer: const AppDrawer(currentPage: 'guides'),
       backgroundColor: Colors.white,
@@ -81,7 +77,7 @@ class _PruningProcessState extends State<PruningProcess> {
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance
                   .collection('contents')
-                  .where('category', isEqualTo: 'Pruning Process')
+                  .where('category', isEqualTo: 'Seasonal Plants')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -99,10 +95,10 @@ class _PruningProcessState extends State<PruningProcess> {
                         children: [
                           const Icon(Icons.error_outline, size: 64, color: Colors.red),
                           const SizedBox(height: 16),
-                          const Text(
+                          Text(
                             'Error loading content',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: 'Poppins',
                               color: Colors.red,
                               fontWeight: FontWeight.w600,
